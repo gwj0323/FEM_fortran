@@ -20,6 +20,10 @@ contains
         use link1
         use plane42rect
 
+  integer :: maxn, minn, bww, i, e, nen
+        integer :: bwtemp=0
+        integer, dimension(mdim) :: edof
+
 ! Hint for continuum elements:
 !        integer, parameter :: mdim = 8
 !        integer, dimension(mdim) :: edof
@@ -29,6 +33,29 @@ contains
 
         ! Calculate number of equations
         neqn = 2*nn
+
+        ! calculate bw
+
+        do e = 1, ne
+
+            ! Find coordinates and degrees of freedom
+            nen = element(e)%numnode
+            do i = 1, nen
+               edof(2*i-1) = 2 * element(e)%ix(i) - 1
+               edof(2*i)   = 2 * element(e)%ix(i)
+             end do
+            maxn=maxval(edof)
+            minn=minval(edof)
+            bww=maxn-minn+1
+            if (bww>=bwtemp) then
+                bwtemp=bww
+            else
+                bwtemp=bwtemp
+            end if
+            bw=bwtemp
+            print *, 'bw='
+            print *, bw
+        end do
 
         if (.not. banded) then
             allocate (kmat(neqn, neqn))
@@ -115,6 +142,7 @@ contains
 
         integer :: i
         integer :: k
+        integer :: j
 ! Hint for continuum elements:
 !        integer, dimension(mdim) :: edof
 !        real(wp), dimension(mdim) :: xe
@@ -126,15 +154,21 @@ contains
             select case(int(loads(i, 1)))
             case( 1 )
             	k=2*(loads(i,2)-1)+loads(i,3)! Build nodal load contribution
-            	print *,k
+            	!print *,k
                 p(k) = loads(1,4)
-                print*,p
-                print *, 'WARNING in fea/buildload: You need to replace hardcoded nodal load with your code'
+                !print*,p
+                !print *, 'WARNING in fea/buildload: You need to replace hardcoded nodal load with your code'
             case( 2 )
-            	! Build uniformly distributed surface (pressure) load contribution
-                print *, 'ERROR in fea/buildload'
-                print *, 'Distributed loads not defined -- you need to add your own code here'
-                stop
+                !print *,loads
+                !print *, '%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%'
+                j=loads(i,2)*loads(i,3)
+                !print*,j
+                p(j)=loads(1,4)
+                !print*,p
+            	! Builpd uniformly distributed surface (pressure) load contribution
+                !print *, 'ERROR in fea/buildload'
+                !print *, 'Distributed loads nooooot defined -- you need to add your own code here'
+                !stop
             case default
                 print *, 'ERROR in fea/buildload'
                 print *, 'Load type not known'
@@ -165,12 +199,15 @@ contains
 !        real(wp), dimension(mdim, mdim) :: me
         real(wp) :: young, area
 ! Hint for modal analysis and continuum elements:
-!        real(wp) :: nu, dens, thk
-
+        real(wp) :: nu, thk
+   ! real(wp) :: nu, dens, thk
         ! Reset stiffness matrix
         if (.not. banded) then
             kmat = 0
+            ! print *, kmat
         else
+
+
             print*,'ERROR in fea/buildstiff'
             print*,'Band form not implemented -- you need to add your own code here'
             stop
@@ -186,7 +223,8 @@ contains
                  edof(2*i-1) = 2 * element(e)%ix(i) - 1
                  edof(2*i)   = 2 * element(e)%ix(i)
             end do
-
+                !print *,'EDOFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF'
+                !print *, edof
             ! Gather material properties and find element stiffness matrix
             select case( element(e)%id )
             case( 1 )
@@ -194,9 +232,18 @@ contains
                  area  = mprop(element(e)%mat)%area
                  call link1_ke(xe, young, area, ke)
             case( 2 )
-                 print *, 'ERROR in fea/buildstiff:'
-                 print *, 'Stiffness matrix for plane42rect elements not implemented -- you need to add your own code here'
-                 stop
+                 young = mprop(element(e)%mat)%young
+                 nu  = mprop(element(e)%mat)%nu
+                 thk  = mprop(element(e)%mat)%thk
+                 call plane42rect_ke(xe, young, nu, thk, ke)
+
+                 !
+
+
+
+                 !print *, 'ERROR in fea/buildstiff:'
+                 !print *, 'Stiffness matrix for plane42rect elements not implemented -- you need to add your own code here'
+                 ! stop
             end select
 
             ! Assemble into global matrix
@@ -206,13 +253,24 @@ contains
                         kmat(edof(i), edof(j)) = kmat(edof(i), edof(j)) + ke(i, j)
                     end do
                 end do
+
+
+                 do i=1,bw
+                    print *,kmat(i,1:neqn)
+                 end do
+
+                 pause!print *,kmat
 ! Hint: Can you eliminate the loops above by using a different Fortran array syntax?
             else
+
+
+
                 print *, 'ERROR in fea/buildstiff'
                 print *, 'Band form not implemented -- you need to add our own code here'
                 stop
             end if
         end do
+
     end subroutine buildstiff
 !
 !--------------------------------------------------------------------------------------------------
@@ -269,7 +327,7 @@ contains
         real(wp), dimension(mdim, mdim) :: ke
         real(wp) :: young, area
 ! Hint for continuum elements:
-!        real(wp):: nu, dens, thk
+        real(wp):: nu, dens, thk
         real(wp), dimension(3) :: estrain, estress
 
         ! Reset force vector
@@ -299,8 +357,20 @@ contains
                 stress(e, 1:3) = estress
                 strain(e, 1:3) = estrain
             case( 2 )
-                print *, 'WARNING in fea/recover: Stress and strain not calculated for continuum' &
-                    // 'elements -- you need to add your own code here'
+                young = mprop(element(e)%mat)%young
+                nu  = mprop(element(e)%mat)%nu
+                thk  = mprop(element(e)%mat)%thk
+
+                call plane42rect_ke(xe, young, nu, thk, ke)
+                call plane42rect_ss(xe, de, young, nu, estress, estrain)
+                stress(e, 1:3) = estress
+                strain(e, 1:3) = estrain
+
+                !print *,'will print  stress %%%%%%%%%%%%%'
+                !print *, stress
+
+                !print *, 'WARNING in fea/recover: Stress and strain not calculated for continuum' &
+                  !  // 'elements -- you need to add your own code here'
             end select
         end do
     end subroutine recover
