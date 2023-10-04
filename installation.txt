@@ -1,0 +1,14 @@
+1. Goto https://www.codeblocks.org/downloads/binaries/ and download 'codeblocks-20.03mingw-setup.exe'
+2. Install the program
+3. unzip FEM_fortran where you want to work on it
+ - open Code:blocks
+        - Choose open existing codeblocks project
+        - open the .cbp file from FEM_fortran
+        - on the left side you can unfold fortran sources to find your files
+ - try compiling and running the code. You do this by pressing 'F9' or the icon with 'gear and play'.
+ 4. if compilation does not work, because compiler is not found do the following
+ - Open code blocks
+ - open the 'Compiler settings' menu, from the 'Settings' tab on the top
+        - goto 'Global compiler settings' -> 'GNU Fortran Compiler' -> Toolchain executables
+        - set the box named compilers installation directories. This should be set to <YOUR_CODE_BLOCKS_INSTALL_DIR>\MinGW
+        - Change the name of the C compiler, C++ compiler, and dynamic linker to 'gfortran.exe'
