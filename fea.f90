@@ -20,9 +20,11 @@ contains
         use link1
         use plane42rect
 
-  integer :: maxn, minn, bww, i, e, nen
+        integer :: maxn, minn, bww, i, e, nen
         integer :: bwtemp=0
         integer, dimension(mdim) :: edof
+
+
 
 ! Hint for continuum elements:
 !        integer, parameter :: mdim = 8
@@ -57,9 +59,14 @@ contains
             print *, bw
         end do
 
+
+
+
+
         if (.not. banded) then
             allocate (kmat(neqn, neqn))
         else
+
             print *, 'ERROR in fea/initial'
             print *, 'Band form not implemented -- you need to add your own code here'
             stop
@@ -155,16 +162,21 @@ contains
             case( 1 )
             	k=2*(loads(i,2)-1)+loads(i,3)! Build nodal load contribution
             	!print *,k
-                p(k) = loads(1,4)
-                !print*,p
+                p(k) = loads(i,4)
+                print*,'p=='
+                print*,p
                 !print *, 'WARNING in fea/buildload: You need to replace hardcoded nodal load with your code'
             case( 2 )
                 !print *,loads
-                !print *, '%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%'
+                print *, '%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%'
                 j=loads(i,2)*loads(i,3)
                 !print*,j
                 p(j)=loads(1,4)
-                !print*,p
+
+
+                print*,'p='
+                print*,p
+
             	! Builpd uniformly distributed surface (pressure) load contribution
                 !print *, 'ERROR in fea/buildload'
                 !print *, 'Distributed loads nooooot defined -- you need to add your own code here'
@@ -223,8 +235,7 @@ contains
                  edof(2*i-1) = 2 * element(e)%ix(i) - 1
                  edof(2*i)   = 2 * element(e)%ix(i)
             end do
-                !print *,'EDOFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF'
-                !print *, edof
+
             ! Gather material properties and find element stiffness matrix
             select case( element(e)%id )
             case( 1 )
@@ -236,10 +247,6 @@ contains
                  nu  = mprop(element(e)%mat)%nu
                  thk  = mprop(element(e)%mat)%thk
                  call plane42rect_ke(xe, young, nu, thk, ke)
-
-                 !
-
-
 
                  !print *, 'ERROR in fea/buildstiff:'
                  !print *, 'Stiffness matrix for plane42rect elements not implemented -- you need to add your own code here'
@@ -253,16 +260,9 @@ contains
                         kmat(edof(i), edof(j)) = kmat(edof(i), edof(j)) + ke(i, j)
                     end do
                 end do
-
-
-                 do i=1,bw
-                    print *,kmat(i,1:neqn)
-                 end do
-
-                 pause!print *,kmat
+             !print *,kmat
 ! Hint: Can you eliminate the loops above by using a different Fortran array syntax?
             else
-
 
 
                 print *, 'ERROR in fea/buildstiff'
@@ -321,13 +321,13 @@ contains
         use link1
         use plane42rect
 
-        integer :: e, i, nen
+        integer :: e, i, nen, eface
         integer :: edof(mdim)
         real(wp), dimension(mdim) :: xe, de
         real(wp), dimension(mdim, mdim) :: ke
-        real(wp) :: young, area
+        real(wp) :: young, area, nu, thk, fe, re(8)
 ! Hint for continuum elements:
-        real(wp):: nu, dens, thk
+!        real(wp):: nu, dens, thk
         real(wp), dimension(3) :: estrain, estress
 
         ! Reset force vector
@@ -352,27 +352,69 @@ contains
                 young = mprop(element(e)%mat)%young
                 area  = mprop(element(e)%mat)%area
                 call link1_ke(xe, young, area, ke)
-                p(edof(1:2*nen)) = p(edof(1:2*nen)) + matmul(ke(1:2*nen,1:2*nen), de(1:2*nen))
+                p(edof(1:2*nen)) = p(edof(1:2*nen)) + matmul(ke(1:2*nen,1:2*nen), de(1:2*nen))   !nen等于4
                 call link1_ss(xe, de, young, estress, estrain)
                 stress(e, 1:3) = estress
-                strain(e, 1:3) = estrain
+                strain(e, 1:3) = estrain  !因为estrain中就是有三个元素
+
+                print*, 'stress='
+                print*, stress
+
+                print*, 'estress='
+                print*, estress
+
+
             case( 2 )
+                !print *, 'WARNING in fea/recover: Stress and strain not calculated for continuum' &
+                !    // 'elements -- you need to add your own code here'
+
+
+
+                !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!这部分是对于面力的？对点力无效？
                 young = mprop(element(e)%mat)%young
-                nu  = mprop(element(e)%mat)%nu
                 thk  = mprop(element(e)%mat)%thk
+                nu  = mprop(element(e)%mat)%nu
+
+                do i=1,SIZE(loads, DIM=1)
+                if (loads(i,2)==e) then
+                        eface=loads(i,3)
+                        fe=loads(i,4)
+                        !call plane42rect_re(xe, eface, fe, thk, re)
+                        !print*, 'i============'
+                        !print*, i
+                end if
+                   !print*, 'iii============'
+                   !print*, i
+                end do
+
 
                 call plane42rect_ke(xe, young, nu, thk, ke)
+
+
+                call plane42rect_re(xe, eface, fe, thk, re)
+                p(edof(1:2*nen)) = p(edof(1:2*nen)) + matmul(ke(1:2*nen,1:2*nen), de(1:2*nen))-re
+
+
+                !print*, 're============'
+                !print*, nface
+
+
+
+
+                !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
                 call plane42rect_ss(xe, de, young, nu, estress, estrain)
                 stress(e, 1:3) = estress
                 strain(e, 1:3) = estrain
 
-                !print *,'will print  stress %%%%%%%%%%%%%'
-                !print *, stress
+                !print*, 'stress=='
+                !print*, stress
 
-                !print *, 'WARNING in fea/recover: Stress and strain not calculated for continuum' &
-                  !  // 'elements -- you need to add your own code here'
+
             end select
         end do
+        print*, 'stress============'
+        print*, stress
     end subroutine recover
 
 end module fea
