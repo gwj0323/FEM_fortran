@@ -66,10 +66,10 @@ contains
         if (.not. banded) then
             allocate (kmat(neqn, neqn))
         else
-
+            allocate(kmat(bw, neqn))
             print *, 'ERROR in fea/initial'
             print *, 'Band form not implemented -- you need to add your own code here'
-            stop
+            !stop
         end if
         allocate (p(neqn), d(neqn))
         allocate (strain(ne, 3), stress(ne, 3))
@@ -200,13 +200,15 @@ contains
         use link1
         use plane42rect
 
-        integer :: e, i, j
+        integer :: e, i, j,k
         integer :: nen
 ! Hint for system matrix in band form:
-!        integer :: irow, icol
+        integer :: irow, icol,band_row
         integer, dimension(mdim) :: edof
         real(wp), dimension(mdim) :: xe
         real(wp), dimension(mdim, mdim) :: ke
+        real(wp), dimension(bw,neqn) :: kband
+        !real(wp), dimension(24,24) :: kmat1
 ! Hint for modal analysis:
 !        real(wp), dimension(mdim, mdim) :: me
         real(wp) :: young, area
@@ -218,11 +220,11 @@ contains
             kmat = 0
             ! print *, kmat
         else
-
+            kmat = 0  !!!!!!!!!!
 
             print*,'ERROR in fea/buildstiff'
             print*,'Band form not implemented -- you need to add your own code here'
-            stop
+            !stop
         end if
 
         do e = 1, ne
@@ -260,14 +262,28 @@ contains
                         kmat(edof(i), edof(j)) = kmat(edof(i), edof(j)) + ke(i, j)
                     end do
                 end do
-             !print *,kmat
+
 ! Hint: Can you eliminate the loops above by using a different Fortran array syntax?
             else
-
+            do k=1,ne
+                  do i = 1,2*nen
+                    irow=edof(i)
+                    do j=1, 2*nen
+                        icol=edof(j)
+                        band_row=irow - icol + bw / 2 + 1
+                        if (band_row >= 1 .and. band_row <= bw) then  !Check bounds
+                        kband(band_row, icol) = kband(band_row, icol) + ke(i, j)
+                        end if
+                    end do
+                  end do
+            end do
+print*,'##########################'
+print *, kband
+print*, ne
 
                 print *, 'ERROR in fea/buildstiff'
                 print *, 'Band form not implemented -- you need to add our own code here'
-                stop
+                !stop
             end if
         end do
 
@@ -281,9 +297,9 @@ contains
 
         use fedata
 
-        integer :: i, idof
+        integer :: i, idof,j,band_row
         real(wp) :: penal
-
+        real(wp), dimension(bw,neqn) :: kband
         ! Correct for supports
         if (.not. banded) then
             if (.not. penalty) then
@@ -304,6 +320,22 @@ contains
                 end do
             end if
         else
+            kband=kmat
+            do i = 1, nb
+                idof = int(2*(bound(i,1)-1) + bound(i,2))
+
+                do j = max(1, idof - bw / 2), min(neqn, idof + bw / 2)
+                    band_row = idof - j + bw / 2 + 1
+                    if (band_row >= 1 .and. band_row <= bw) then
+                    kband(band_row, j) = 0.0_wp
+                    end if
+                end do
+            end do
+            ! set diagonal element to 1
+                kband(bw / 2 + 1, idof) = 1.0_wp
+
+print*,'%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%'
+print*,kband
             print *, 'ERROR in fea/enforce'
             print *, 'Band form not implemented -- you need to add your own code here'
             stop
