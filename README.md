@@ -1,2 +1,4 @@
 # FEM_fortran
-fem assignmengt
+fem assignment
+
+current problems， Band matrix
